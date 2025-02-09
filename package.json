@@ -1,0 +1,22 @@
+{
+  "name": "cardmarketplacebackend",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "start": "func start",
+    "test": "echo \"No tests yet...\""
+  },
+  "dependencies": {
+    "@azure/storage-blob": "^12.26.0",
+    "bcrypt": "^5.1.1",
+    "body-parser": "^1.20.3",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "jwks-rsa": "^3.1.0",
+    "mssql": "^11.0.1",
+    "multiparty": "^4.2.3",
+    "passport": "^0.7.0",
+    "passport-azure-ad": "^4.3.5"
+  }
+}
