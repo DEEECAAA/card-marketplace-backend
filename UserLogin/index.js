@@ -23,7 +23,6 @@ const validateIssuer = (issuer) => {
     if (issuer.startsWith("https://login.microsoftonline.com/") && issuer.endsWith("/v2.0")) {
         return true;
     }
-    console.log(`Issuer non valido ricevuto: ${issuer}`);
     return false;
 };
 

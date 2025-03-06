@@ -34,25 +34,13 @@ async function deleteBlob(blobName) {
             blobName = `${folderPath}${blobName}`;
         }
 
-        console.log(`🔍 Tentativo di eliminare il blob: "${blobName}"`);
-
         const blobServiceClient = BlobServiceClient.fromConnectionString(AZURE_STORAGE_CONNECTION_STRING);
         const containerClient = blobServiceClient.getContainerClient(CONTAINER_NAME);
         const blobClient = containerClient.getBlobClient(blobName);
 
-        console.log(`📂 Container usato: ${CONTAINER_NAME}`);
-        console.log(`🗑️ Eliminazione file blob: ${blobName}`);
-
         const deleteResponse = await blobClient.deleteIfExists();
-        console.log(`🔍 Risultato della cancellazione per ${blobName}:`, deleteResponse);
 
-        // Verifica se il file esiste ancora
         const exists = await blobClient.exists();
-        if (exists) {
-            console.log(`❌ Il file ${blobName} è ancora presente nel container.`);
-        } else {
-            console.log(`✅ Confermato: ${blobName} è stato eliminato.`);
-        }
     } catch (error) {
         console.error("❌ Errore durante l'eliminazione del file blob:", error.message);
     }
@@ -63,8 +51,6 @@ const validateIssuer = (issuer) => {
 };
 
 module.exports = async function (context, req) {
-    console.log("🔹 Richiesta ricevuta per rimuovere una carta o un mazzo...");
-
     const authHeader = req.headers["authorization"];
     let userId = null;
 
@@ -103,11 +89,7 @@ module.exports = async function (context, req) {
     try {
         const pool = await poolPromise;
 
-        // 🔹 Eliminazione di una Carta
         if (cardId) {
-            console.log(`📌 Tentativo di rimozione carta con ID: ${cardId}`);
-
-            // 🔍 Recupera l'URL dell'immagine della carta
             const imageQuery = `SELECT ImageUrl FROM Cards WHERE CardId = @CardId`;
             const imageResult = await pool.request()
                 .input("CardId", cardId)
@@ -119,7 +101,6 @@ module.exports = async function (context, req) {
                 await deleteBlob(blobName); // Elimina il file dal blob storage
             }
 
-            // Recupera i mazzi che contengono la carta
             const decksWithCardQuery = `
                 SELECT DISTINCT DeckId FROM DeckCards WHERE CardId = @CardId
             `;
@@ -130,12 +111,10 @@ module.exports = async function (context, req) {
             const decksToDelete = decksWithCardResult.recordset.map(row => row.DeckId);
 
             if (decksToDelete.length > 0) {
-                console.log(`🗑️ Eliminando ${decksToDelete.length} mazzi che contenevano la carta...`);
                 await pool.request()
                     .query(`DELETE FROM Decks WHERE DeckId IN (${decksToDelete.join(",")})`);
             }
 
-            // Elimina la carta dai mazzi
             await pool.request()
                 .input("CardId", cardId)
                 .query(`DELETE FROM DeckCards WHERE CardId = @CardId`);
@@ -144,7 +123,6 @@ module.exports = async function (context, req) {
             .input("CardId", cardId)
             .query(`DELETE FROM Favorites WHERE CardId = @CardId`);
 
-            // Infine, elimina la carta
             await pool.request()
                 .input("CardId", cardId)
                 .query(`DELETE FROM Cards WHERE CardId = @CardId`);
@@ -156,11 +134,7 @@ module.exports = async function (context, req) {
             return;
         }
 
-        // 🔹 Eliminazione di un Mazzo
         if (deckId) {
-            console.log(`📌 Tentativo di rimozione mazzo con ID: ${deckId}`);
-
-            // 🔍 Recupera l'URL dell'immagine del mazzo
             const imageQuery = `SELECT ImageUrl FROM Decks WHERE DeckId = @DeckId`;
             const imageResult = await pool.request()
                 .input("DeckId", deckId)
@@ -172,7 +146,6 @@ module.exports = async function (context, req) {
                 await deleteBlob(blobName); // Elimina il file dal blob storage
             }
 
-            // Controlla se il mazzo appartiene all'utente
             const checkDeckQuery = `SELECT DeckId FROM Decks WHERE DeckId = @DeckId AND OwnerId = @UserId`;
             const checkDeckResult = await pool.request()
                 .input("DeckId", deckId)
@@ -188,7 +161,6 @@ module.exports = async function (context, req) {
                 return;
             }
 
-            // 🔄 Recupera le carte presenti nel mazzo
             const deckCardsQuery = `
                 SELECT CardId, Quantity FROM DeckCards WHERE DeckId = @DeckId
             `;
@@ -197,8 +169,6 @@ module.exports = async function (context, req) {
                 .query(deckCardsQuery);
 
             if (deckCardsResult.recordset.length > 0) {
-                console.log("🔄 Ripristino delle quantità delle carte rimosse dal mazzo...");
-
                 for (const card of deckCardsResult.recordset) {
                     const { CardId, Quantity } = card;
 
@@ -211,7 +181,6 @@ module.exports = async function (context, req) {
                 }
             }
 
-            // Elimina le associazioni delle carte con il mazzo
             await pool.request()
                 .input("DeckId", deckId)
                 .query(`DELETE FROM DeckCards WHERE DeckId = @DeckId`);
@@ -220,7 +189,6 @@ module.exports = async function (context, req) {
             .input("DeckId", deckId)
             .query(`DELETE FROM FavoritesDecks WHERE DeckId = @DeckId`);
 
-            // Ora elimina il mazzo
             await pool.request()
                 .input("DeckId", deckId)
                 .query(`DELETE FROM Decks WHERE DeckId = @DeckId`);
@@ -232,7 +200,6 @@ module.exports = async function (context, req) {
             return;
         }
     } catch (error) {
-        console.error("❌ Errore durante la rimozione:", error.message);
         context.res = {
             status: 500,
             body: { error: `Errore del server: ${error.message}` },

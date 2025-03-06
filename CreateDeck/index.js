@@ -3,6 +3,10 @@ const { BlobServiceClient } = require("@azure/storage-blob");
 const jwt = require("jsonwebtoken");
 const jwksClient = require("jwks-rsa");
 
+const clientId = process.env.CLIENT_ID;
+const blobStorageConnectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
+const containerName = process.env.BLOB_CONTAINER_NAME;
+
 const client = jwksClient({
     jwksUri: `https://login.microsoftonline.com/common/discovery/v2.0/keys`
 });
@@ -22,6 +26,21 @@ function getSigningKey(header, callback) {
 const validateIssuer = (issuer) => {
     return issuer.startsWith("https://login.microsoftonline.com/") && issuer.endsWith("/v2.0");
 };
+
+async function uploadImageToBlobStorage(base64Image) {
+    const blobServiceClient = BlobServiceClient.fromConnectionString(blobStorageConnectionString);
+    const containerClient = blobServiceClient.getContainerClient(containerName);
+    const blobName = `card-images/${uuidv4()}.jpg`;
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
+    const buffer = Buffer.from(base64Image, "base64");
+
+    await blockBlobClient.upload(buffer, buffer.length, {
+        blobHTTPHeaders: { blobContentType: "image/jpeg" }
+    });
+
+    return blockBlobClient.url;
+}
 
 module.exports = async function (context, req) {
     const authHeader = req.headers["authorization"];
@@ -48,7 +67,7 @@ module.exports = async function (context, req) {
     }
 
     try {
-        let { name, description, imageUrl, cards } = req.body;
+        let { name, description, image, cards } = req.body;
         if (!name || !cards || !Array.isArray(cards) || cards.length === 0) {
             context.res = {
                 status: 400,
@@ -58,7 +77,7 @@ module.exports = async function (context, req) {
         }
 
         description = description || "";
-        imageUrl = imageUrl || defaultImageUrl;
+        let imageUrl = image ? await uploadImageToBlobStorage(image) : defaultImageUrl;
 
         const pool = await poolPromise;
         const result = await pool.request()
